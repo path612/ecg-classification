@@ -205,7 +205,7 @@ def ResNet_model(WINDOW_SIZE):
 '''K -fold cross validation'''
 def model_eval(X,y):
     batch =64
-    epochs = 50  
+    epochs = 25  
     rep = 1         
     #chanke k for 10 fold cross validation 
     Kfold = 5
@@ -229,7 +229,7 @@ def model_eval(X,y):
             # Callbacks definition
             callbacks = [
                 # Early stopping definition
-                EarlyStopping(monitor='val_loss', patience=3, verbose=1),
+                EarlyStopping(monitor='val_loss', patience=30, verbose=1),
                 # Decrease learning rate by 0.1 factor
                 AdvancedLearnignRateScheduler(monitor='val_loss', patience=5,verbose=1, mode='auto', decayRatio=0.1),            
                 # Saving best model
