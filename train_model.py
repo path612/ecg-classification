@@ -152,7 +152,7 @@ def ResNet_model(WINDOW_SIZE):
     del x1,x2
     
     p = not p 
-    for l in range(4):
+    for l in range(1):
         
         if (l%4 == 0) and (l>0): 
             k += 1
@@ -229,7 +229,7 @@ def model_eval(X,y):
             # Callbacks definition
             callbacks = [
                 # Early stopping definition
-                EarlyStopping(monitor='val_loss', patience=30, verbose=1),
+                EarlyStopping(monitor='val_loss', patience=3, verbose=1),
                 # Decrease learning rate by 0.1 factor
                 AdvancedLearnignRateScheduler(monitor='val_loss', patience=5,verbose=1, mode='auto', decayRatio=0.1),            
                 # Saving best model
