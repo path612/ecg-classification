@@ -62,7 +62,7 @@ class AdvancedLearnignRateScheduler(Callback):
         else:
             if self.wait >= self.patience:
                 if self.verbose > 0:
-                    print('\nEpoch %05d: reducing learning rate' % (epoch))
+                    #print('\nEpoch %05d: reducing learning rate' % (epoch))
                     assert hasattr(self.model.optimizer, 'lr'), \
                         'Optimizer must have a "lr" attribute.'
                     current_lr = K.get_value(self.model.optimizer.lr)
@@ -229,7 +229,7 @@ def model_eval(X,y):
             # Callbacks definition
             callbacks = [
                 # Early stopping definition
-                EarlyStopping(monitor='val_loss', patience=30, verbose=1),
+                EarlyStopping(monitor='val_loss', patience=3, verbose=1),
                 # Decrease learning rate by 0.1 factor
                 AdvancedLearnignRateScheduler(monitor='val_loss', patience=5,verbose=1, mode='auto', decayRatio=0.1),            
                 # Saving best model
