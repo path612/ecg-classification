@@ -11,7 +11,10 @@ sys.path.insert(0, './preparation')
 # Keras imports
 import keras
 from keras.models import Model
-from keras.layers import Input, Conv1D, Dense, Flatten, Dropout,MaxPooling1D, Activation, BatchNormalization
+from keras.layers import Input, Conv1D, Dense, Flatten, Dropout,MaxPooling1D, Activation, BatchNormalization,LSTM,Bidirectional
+
+
+
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.utils import plot_model
 from keras import backend as K
@@ -152,7 +155,7 @@ def ResNet_model(WINDOW_SIZE):
     del x1,x2
     
     p = not p 
-    for l in range(1):
+    for l in range(15):
         
         if (l%4 == 0) and (l>0): 
             k += 1
@@ -190,8 +193,10 @@ def ResNet_model(WINDOW_SIZE):
     x = BatchNormalization()(x)
     x = Activation('relu')(x) 
     x = Flatten()(x)
-    #x = Dense(1000)(x)
-    #x = Dense(1000)(x)
+    x = Dense(1000)(x)
+    x = Dense(500)(x)
+    x = Dense(100)(x)
+    #x = Bidirectional(LSTM(input1))(x)
     out = Dense(OUTPUT_CLASS, activation='softmax')(x)
     model = Model(inputs=input1, outputs=out)
     model.compile(optimizer='adam',
