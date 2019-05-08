@@ -3,6 +3,8 @@ This function  function used for training and cross-validating model using. The 
 included in this repo, please download the CinC Challenge database and truncate/pad data into a 
 NxM matrix array, being N the number of recordings and M the window accepted by the network (i.e. 
 30 seconds).
+
+
 For more information visit: https://github.com/fernandoandreotti/cinc-challenge2017
  
  Referencing this work
@@ -214,7 +216,7 @@ def ResNet_model(WINDOW_SIZE):
     
     ## Main loop
     p = not p 
-    for l in range(30):
+    for l in range(15):
         
         if (l%4 == 0) and (l>0): # increment k on every fourth residual block
             k += 1
@@ -275,7 +277,7 @@ def ResNet_model(WINDOW_SIZE):
 ##########################################################
 def model_eval(X,y):
     batch =64
-    epochs = 30  
+    epochs = 20  
     rep = 1         # K fold procedure can be repeated multiple times
     Kfold = 5
     Ntrain = 8528 # number of recordings on training set
@@ -412,4 +414,6 @@ for i in range(4):
 F1mean = np.mean(F1)
 print("mean F1 measure for: {:1.4f}".format(F1mean))
 plot_confusion_matrix(cvsum, classes,normalize=True,title='Confusion matrix')
+
+
 
