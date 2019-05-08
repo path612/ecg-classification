@@ -1,36 +1,3 @@
-'''
-This function  function used for training and cross-validating model using. The database is not 
-included in this repo, please download the CinC Challenge database and truncate/pad data into a 
-NxM matrix array, being N the number of recordings and M the window accepted by the network (i.e. 
-30 seconds).
-For more information visit: https://github.com/fernandoandreotti/cinc-challenge2017
- 
- Referencing this work
-   Andreotti, F., Carr, O., Pimentel, M.A.F., Mahdi, A., & De Vos, M. (2017). Comparing Feature Based 
-   Classifiers and Convolutional Neural Networks to Detect Arrhythmia from Short Segments of ECG. In 
-   Computing in Cardiology. Rennes (France).
---
- cinc-challenge2017, version 1.0, Sept 2017
- Last updated : 27-09-2017
- Released under the GNU General Public License
- Copyright (C) 2017  Fernando Andreotti, Oliver Carr, Marco A.F. Pimentel, Adam Mahdi, Maarten De Vos
- University of Oxford, Department of Engineering Science, Institute of Biomedical Engineering
- fernando.andreotti@eng.ox.ac.uk
-   
- This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
- 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- 
- You should have received a copy of the GNU General Public License
- along with this program.  If not, see <http://www.gnu.org/licenses/>.
-'''
-
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
@@ -44,28 +11,44 @@ sys.path.insert(0, './preparation')
 # Keras imports
 import keras
 from keras.models import Model
-from keras.layers import Input, Conv1D, Dense, Flatten, Dropout,MaxPooling1D, Activation, BatchNormalization
+from keras.layers import Input, Conv1D, Dense, Flatten, Dropout,MaxPooling1D, Activation, BatchNormalization,LSTM,Bidirectional
+
+
+
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.utils import plot_model
 from keras import backend as K
 from keras.callbacks import Callback,warnings
 
-###################################################################
-### Callback method for reducing learning rate during training  ###
-###################################################################
+from keras.layers import Layer
+from keras import backend as K
+
+'''Add rbf layer class'''
+class RBFLayer(Layer):
+    def __init__(self, units, gamma, **kwargs):
+        super(RBFLayer, self).__init__(**kwargs)
+        self.units = units
+        self.gamma = K.cast_to_floatx(gamma)
+
+    def build(self, input_shape):
+        self.mu = self.add_weight(name='mu',
+                                  shape=(int(input_shape[1]), self.units),
+                                  initializer='uniform',
+                                  trainable=True)
+        super(RBFLayer, self).build(input_shape)
+
+    def call(self, inputs):
+        diff = K.expand_dims(inputs) - self.mu
+        l2 = K.sum(K.pow(diff,2), axis=1)
+        res = K.exp(-1 * self.gamma * l2)
+        return res
+
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], self.units)
+
+
 class AdvancedLearnignRateScheduler(Callback):    
-    '''
-   # Arguments
-       monitor: quantity to be monitored.
-       patience: number of epochs with no improvement
-           after which training will be stopped.
-       verbose: verbosity mode.
-       mode: one of {auto, min, max}. In 'min' mode,
-           training will stop when the quantity
-           monitored has stopped decreasing; in 'max'
-           mode it will stop when the quantity
-           monitored has stopped increasing.
-   '''
+
     def __init__(self, monitor='val_loss', patience=0,verbose=0, mode='auto', decayRatio=0.1):
         super(Callback, self).__init__() 
         self.monitor = monitor
@@ -97,7 +80,7 @@ class AdvancedLearnignRateScheduler(Callback):
     def on_epoch_end(self, epoch, logs={}):
         current = logs.get(self.monitor)
         current_lr = K.get_value(self.model.optimizer.lr)
-        print("\nLearning rate:", current_lr)
+        # print("\nLearning rate:", current_lr)
         if current is None:
             warnings.warn('AdvancedLearnignRateScheduler'
                           ' requires %s available!' %
@@ -109,7 +92,7 @@ class AdvancedLearnignRateScheduler(Callback):
         else:
             if self.wait >= self.patience:
                 if self.verbose > 0:
-                    print('\nEpoch %05d: reducing learning rate' % (epoch))
+                    #print('\nEpoch %05d: reducing learning rate' % (epoch))
                     assert hasattr(self.model.optimizer, 'lr'), \
                         'Optimizer must have a "lr" attribute.'
                     current_lr = K.get_value(self.model.optimizer.lr)
@@ -118,18 +101,12 @@ class AdvancedLearnignRateScheduler(Callback):
                     self.wait = 0 
             self.wait += 1
 
-
-###########################################
-## Function to plot confusion matrices  ##
-#########################################
+''' for confusion matrix'''
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap=plt.cm.Blues):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
+    
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
@@ -155,28 +132,22 @@ def plot_confusion_matrix(cm, classes,
     plt.xlabel('Predicted label')
     plt.savefig('confusion.eps', format='eps', dpi=1000)
 
-
-#####################################
-## Model definition              ##
-## ResNet based on Rajpurkar    ##
-################################## 
+''' Model'''
 def ResNet_model(WINDOW_SIZE):
-    # Add CNN layers left branch (higher frequencies)
-    # Parameters from paper
+    
     INPUT_FEAT = 1
     OUTPUT_CLASS = 4    # output classes
 
-    k = 1    # increment every 4th residual block
-    p = True # pool toggle every other residual block (end with 2^8)
+    k = 1    
+    p = True 
     convfilt = 64
     convstr = 1
-    ksize = 16
+    ksize = 16 #kernel size
     poolsize = 2
     poolstr  = 2
-    drop = 0.5
+    drop = 0.5 #dropou
     
-    # Modelling with Functional API
-    #input1 = Input(shape=(None,1), name='input')
+    
     input1 = Input(shape=(WINDOW_SIZE,INPUT_FEAT), name='input')
     
     ## First convolutional block (conv,BN, relu)
@@ -188,8 +159,6 @@ def ResNet_model(WINDOW_SIZE):
     x = BatchNormalization()(x)        
     x = Activation('relu')(x)  
     
-    ## Second convolutional block (conv, BN, relu, dropout, conv) with residual net
-    # Left branch (convolutions)
     x1 =  Conv1D(filters=convfilt,
                kernel_size=ksize,
                padding='same',
@@ -205,25 +174,22 @@ def ResNet_model(WINDOW_SIZE):
                kernel_initializer='he_normal')(x1)
     x1 = MaxPooling1D(pool_size=poolsize,
                       strides=poolstr)(x1)
-    # Right branch, shortcut branch pooling
+    
     x2 = MaxPooling1D(pool_size=poolsize,
                       strides=poolstr)(x)
-    # Merge both branches
+    
     x = keras.layers.add([x1, x2])
     del x1,x2
     
-    ## Main loop
     p = not p 
-    for l in range(30):
+    for l in range(15):
         
-        if (l%4 == 0) and (l>0): # increment k on every fourth residual block
+        if (l%4 == 0) and (l>0): 
             k += 1
-             # increase depth by 1x1 Convolution case dimension shall change
             xshort = Conv1D(filters=convfilt*k,kernel_size=1)(x)
         else:
             xshort = x        
-        # Left branch (convolutions)
-        # notice the ordering of the operations has changed        
+        
         x1 = BatchNormalization()(x)
         x1 = Activation('relu')(x1)
         x1 = Dropout(drop)(x1)
@@ -243,23 +209,22 @@ def ResNet_model(WINDOW_SIZE):
         if p:
             x1 = MaxPooling1D(pool_size=poolsize,strides=poolstr)(x1)                
 
-        # Right branch: shortcut connection
         if p:
             x2 = MaxPooling1D(pool_size=poolsize,strides=poolstr)(xshort)
         else:
-            x2 = xshort  # pool or identity            
-        # Merging branches
+            x2 = xshort  
         x = keras.layers.add([x1, x2])
-        # change parameters
-        p = not p # toggle pooling
-
+        
+        p = not p 
     
-    # Final bit    
     x = BatchNormalization()(x)
     x = Activation('relu')(x) 
     x = Flatten()(x)
     #x = Dense(1000)(x)
-    #x = Dense(1000)(x)
+    #x = Dense(500)(x)
+    #x = Dense(100)(x)
+    #x = Bidirectional(LSTM(input1))(x)
+    x = RBFlayer(input1)(x)
     out = Dense(OUTPUT_CLASS, activation='softmax')(x)
     model = Model(inputs=input1, outputs=out)
     model.compile(optimizer='adam',
@@ -270,19 +235,19 @@ def ResNet_model(WINDOW_SIZE):
     plot_model(model, to_file='model.png')
     return model
 
-###########################################################
-## Function to perform K-fold Crossvalidation on model  ##
-##########################################################
+'''K -fold cross validation'''
 def model_eval(X,y):
     batch =64
-    epochs = 30  
-    rep = 1         # K fold procedure can be repeated multiple times
+    epochs = 25  
+    rep = 1         
+    #chanke k for 10 fold cross validation 
     Kfold = 5
     Ntrain = 8528 # number of recordings on training set
     Nsamp = int(Ntrain/Kfold) # number of recordings to take as validation        
    
     # Need to add dimension for training
     X = np.expand_dims(X, axis=2)
+    print(X.shape)
     classes = ['A', 'N', 'O', '~']
     Nclass = len(classes)
     cvconfusion = np.zeros((Nclass,Nclass,Kfold*rep))
@@ -342,21 +307,8 @@ def model_eval(X,y):
     scipy.io.savemat('xval_results.mat',mdict={'cvconfusion': cvconfusion.tolist()})  
     return model
 
-###########################
-## Function to load data ##
-###########################
+'''load data'''
 def loaddata(WINDOW_SIZE):    
-    '''
-        Load training/test data into workspace
-        
-        This function assumes you have downloaded and padded/truncated the 
-        training set into a local file named "trainingset.mat". This file should 
-        contain the following structures:
-            - trainset: NxM matrix of N ECG segments with length M
-            - traintarget: Nx4 matrix of coded labels where each column contains
-            one in case it matches ['A', 'N', 'O', '~'].
-        
-    '''
     print("Loading data training set")        
     matfile = scipy.io.loadmat('trainingset.mat')
     X = matfile['trainset']
@@ -371,10 +323,7 @@ def loaddata(WINDOW_SIZE):
     return (X, y)
 
 
-#####################
-# Main function   ##
-###################
-
+'''Main runnable code'''
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True
 sess = tf.Session(config=config)
@@ -412,4 +361,5 @@ for i in range(4):
 F1mean = np.mean(F1)
 print("mean F1 measure for: {:1.4f}".format(F1mean))
 plot_confusion_matrix(cvsum, classes,normalize=True,title='Confusion matrix')
+
 
