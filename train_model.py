@@ -216,7 +216,7 @@ def ResNet_model(WINDOW_SIZE):
     
     ## Main loop
     p = not p 
-    for l in range(35):
+    for l in range(20):
         
         if (l%4 == 0) and (l>0): # increment k on every fourth residual block
             k += 1
